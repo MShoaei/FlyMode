@@ -10,9 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/PuerkitoBio/goquery"
-
 	"github.com/MShoaei/FlyMode/flight"
+	"github.com/PuerkitoBio/goquery"
 	"github.com/gocolly/colly"
 	"github.com/google/uuid"
 	// "github.com/MShoaei/FlyMode/uuid"
@@ -85,7 +84,7 @@ func FindFlights(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var items []interface{}
+	items := make([]interface{}, 0, 50)
 
 	q := &query{}
 	body, err := ioutil.ReadAll(r.Body)
@@ -118,18 +117,18 @@ func FindFlights(w http.ResponseWriter, r *http.Request) {
 			stops := el.Attr("data-stop")
 			if stops == "0" {
 				if len(el.DOM.Filter("div.F-Info-departure").Children().Nodes) == 0 {
-					f := &flight.OneWay{GoFlight: &flight.Flight{}}
+					f := &flight.Flight{}
 					code := el.ChildText(".r-code:last-child")
-					f.GoFlight.Source = code[1 : len(code)-1]
-					f.GoFlight.Destination = el.Attr("data-airport")
-					f.GoFlight.TakeoffTime = el.Attr("data-time")
-					f.GoFlight.LandingTime = el.ChildText(`span[data-original-title="زمان ورود"]`)
-					f.GoFlight.Website = "https://eligasht.com"
+					f.Source = code[1 : len(code)-1]
+					f.Destination = el.Attr("data-airport")
+					f.TakeoffTime = el.Attr("data-time")
+					f.LandingTime = el.ChildText(`span[data-original-title="زمان ورود"]`)
+					f.Website = "https://eligasht.com"
 					p, _ := strconv.ParseFloat(el.Attr("data-cost"), 64)
-					f.GoFlight.Price = p
-					f.GoFlight.FirstAirline = el.Attr("data-airline")
-					f.GoFlight.FirstFlightClass = el.Attr("data-class")
-
+					f.Price = p
+					f.FirstAirline = el.Attr("data-airline")
+					f.FirstFlightClass = el.Attr("data-class")
+					var flightNum string
 					d.OnResponse(func(cr *colly.Response) {
 						details := &flightDetail{}
 						json.Unmarshal(cr.Body, details)
@@ -138,16 +137,16 @@ func FindFlights(w http.ResponseWriter, r *http.Request) {
 							log.Println(err)
 							return
 						}
-						flightNum := dom.Find("div.segment-details-grid span:nth-child(3)").Text()
-						f.GoFlight.FirstFlightNumber = strings.TrimSpace(strings.Split(flightNum, ":")[1])
+						flightNum = strings.TrimSpace(strings.Split(dom.Find("div.segment-details-grid span:nth-child(3)").Text(), ":")[1])
 					})
 
 					d.Post("https://www.eligasht.com/Flight/GetFlightDetails",
 						map[string]string{
-							"FlightGUID": e.ChildAttr("input", "value"),
+							"FlightGUID": el.ChildAttr("input", "value"),
 							"SearchKey":  q.SearchKey,
 						})
-					items = append(items, f)
+					f.FirstFlightNumber = flightNum
+					items = append(items, &flight.OneWay{GoFlight: f})
 				} else {
 					// f := &flight.RoundTrip{}
 
